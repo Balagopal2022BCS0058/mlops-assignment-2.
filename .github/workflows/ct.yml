@@ -1,0 +1,41 @@
+name: CT (Continuous Training)
+
+on:
+  schedule:
+    - cron: "0 2 * * 1"  # every Monday 02:00 UTC
+  workflow_dispatch:
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e .
+
+      - name: Generate data
+        run: python scripts/generate_data.py
+
+      - name: Prepare features
+        run: python scripts/prepare_data.py
+
+      - name: Generate drift report
+        run: python scripts/generate_drift_report.py
+
+      - name: Retrain if drift detected
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        run: python -m churn.retraining.trigger
+
+      - name: Upload drift report
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-report
+          path: reports/
